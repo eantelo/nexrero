@@ -4,6 +4,7 @@ import { QuickActions } from "@/components/dashboard/quick-actions";
 import { SidebarNav } from "@/components/dashboard/sidebar-nav";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { createClient } from "@/utils/supabase/server";
+import { db } from "@/utils/supabase/database";
 import { redirect } from "next/navigation";
 
 export default async function ProtectedPage() {
@@ -11,9 +12,50 @@ export default async function ProtectedPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  
   if (!user) {
     return redirect("/sign-in");
   }
+
+  // Get customer data and recent orders
+  const { data: recentOrders } = await supabase
+    .from('orders')
+    .select('*, customers!inner(name)')
+    .order('order_date', { ascending: false })
+    .limit(5);
+
+  // Get all customer data and calculate stats
+  const allCustomers = await db.customers.getAll();
+  const customerCount = allCustomers.length;
+  const newCustomersThisMonth = allCustomers.filter(customer => {
+    const customerDate = new Date(customer.created_at);
+    const now = new Date();
+    return customerDate.getMonth() === now.getMonth() && 
+           customerDate.getFullYear() === now.getFullYear();
+  }).length;
+
+  // Calculate new customer percentage change
+  const customerGrowthRate = customerCount > 0 
+    ? ((newCustomersThisMonth / customerCount) * 100)
+    : 0;
+
+  // Get recent customers
+  const { data: recentCustomers } = await supabase
+    .from('customers')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  // Get product stats
+  const allProducts = await db.products.getAll();
+  const productCount = allProducts.length;
+  const lowStockThreshold = 10;
+  const lowStockCount = allProducts.filter(p => p.stock_quantity <= lowStockThreshold && p.stock_quantity > 0).length;
+  const outOfStockCount = allProducts.filter(p => p.stock_quantity === 0).length;
+  const averagePrice = allProducts.length > 0 
+    ? allProducts.reduce((sum, p) => sum + p.price, 0) / allProducts.length 
+    : 0;
+    
   return (
     <div className="flex min-h-screen flex-col">
       <DashboardHeader user={user} />
@@ -34,28 +76,27 @@ export default async function ProtectedPage() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <StatsCard
                 title="Total Customers"
-                value="5,234"
+                value={customerCount}
                 iconName="Users"
-                trend={{ value: 12, isPositive: true }}
+                trend={{ value: Math.round(customerGrowthRate), isPositive: customerGrowthRate > 0 }}
               />
               <StatsCard
-                title="Total Revenue"
-                value="$54,321"
-                iconName="DollarSign"
-                trend={{ value: 8, isPositive: true }}
-              />
-              <StatsCard
-                title="Orders"
-                value="432"
-                description="Last 30 days"
-                iconName="ShoppingCart"
-                trend={{ value: 5, isPositive: false }}
-              />
-              <StatsCard
-                title="Products"
-                value="198"
+                title="Products" 
+                value={productCount.toString()}
                 iconName="Package"
-                description="12 low stock items"
+                description={`${lowStockCount + outOfStockCount} items need attention`}
+              />
+              <StatsCard
+                title="Low Stock"
+                value={lowStockCount.toString()}
+                iconName="AlertCircle"
+                description="Below 10 units"
+              />
+              <StatsCard
+                title="Out of Stock"
+                value={outOfStockCount.toString()}
+                iconName="XCircle"
+                description="Needs immediate attention"
               />
             </div>
             
@@ -85,23 +126,17 @@ export default async function ProtectedPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {[
-                      { id: "ORD-001", customer: "John Smith", date: "Today", amount: "$432.00", status: "Completed" },
-                      { id: "ORD-002", customer: "Sarah Johnson", date: "Yesterday", amount: "$150.00", status: "Processing" },
-                      { id: "ORD-003", customer: "Michael Brown", date: "2 days ago", amount: "$65.50", status: "Shipped" },
-                      { id: "ORD-004", customer: "Emma Davis", date: "3 days ago", amount: "$324.75", status: "Completed" },
-                      { id: "ORD-005", customer: "Robert Wilson", date: "4 days ago", amount: "$198.20", status: "Processing" },
-                    ].map((order) => (
+                    {recentOrders?.map((order) => (
                       <tr key={order.id} className="border-b">
-                        <td className="py-3 text-sm">{order.id}</td>
-                        <td className="py-3 text-sm">{order.customer}</td>
-                        <td className="py-3 text-sm">{order.date}</td>
-                        <td className="py-3 text-sm">{order.amount}</td>
+                        <td className="py-3 text-sm">{order.id.substring(0, 8)}</td>
+                        <td className="py-3 text-sm">{order.customers.name}</td>
+                        <td className="py-3 text-sm">{new Date(order.order_date).toLocaleDateString()}</td>
+                        <td className="py-3 text-sm">${order.total_amount.toFixed(2)}</td>
                         <td className="py-3 text-sm">
                           <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                            order.status === "Completed" 
+                            order.status === "completed" 
                               ? "bg-green-100 text-green-800"
-                              : order.status === "Processing"
+                              : order.status === "processing"
                                 ? "bg-blue-100 text-blue-800"
                                 : "bg-yellow-100 text-yellow-800"
                           }`}>
@@ -112,6 +147,26 @@ export default async function ProtectedPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+            
+            <div className="rounded-lg border p-6">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-lg">Recent Customers</h3>
+                <span className="text-sm text-muted-foreground">Last 5 new customers</span>
+              </div>
+              <div className="mt-4 space-y-4">
+                {recentCustomers?.map((customer) => (
+                  <div key={customer.id} className="flex items-center justify-between border-b pb-4">
+                    <div>
+                      <p className="font-medium">{customer.name}</p>
+                      <p className="text-sm text-muted-foreground">{customer.email}</p>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Joined {new Date(customer.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

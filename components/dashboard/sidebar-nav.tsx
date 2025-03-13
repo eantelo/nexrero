@@ -23,9 +23,9 @@ export function SidebarNav({ className }: SidebarNavProps) {
 
   const navItems = [
     { name: "Dashboard", href: "/protected", icon: Home },
+    { name: "Products", href: "/protected/products", icon: Package },
     { name: "Customers", href: "/protected/customers", icon: Users },
     { name: "Sales", href: "/protected/sales", icon: ShoppingCart },
-    { name: "Inventory", href: "/protected/inventory", icon: Package },
     { name: "Analytics", href: "/protected/analytics", icon: BarChart3 },
     { name: "Finance", href: "/protected/finance", icon: DollarSign },
     { name: "Calendar", href: "/protected/calendar", icon: Calendar },
