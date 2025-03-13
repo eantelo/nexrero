@@ -20,7 +20,7 @@ export default async function ProductsPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const { search, sort = 'name', order = 'asc' } = searchParams;
+  const { search, sort = 'name', order = 'asc' } = await Promise.resolve(searchParams);
   
   // Get all products
   const allProducts = await db.products.getAll();

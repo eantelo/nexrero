@@ -20,7 +20,7 @@ export default async function CustomersPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const { search, sort = 'name', order = 'asc' } = searchParams;
+  const { search, sort = 'name', order = 'asc' } = await searchParams;
   
   // Get all customers
   const allCustomers = await db.customers.getAll();
