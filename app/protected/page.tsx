@@ -70,7 +70,7 @@ export default async function ProtectedPage() {
             <div>
               <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
               <p className="text-muted-foreground">
-                Welcome back! Here's an overview of your business.
+                Welcome back! Here's an overview of your Negocio.
               </p>
             </div>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
